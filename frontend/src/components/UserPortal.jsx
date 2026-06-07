@@ -104,40 +104,54 @@ export default function UserPortal() {
         // Fetch initial list state
         fetchItems();
 
-        const wsEndpoint = `${WS_URL}/ws/items/`;
-        console.log(`[User Portal] Initializing real-time synchronization socket at: ${wsEndpoint}`);
-        
-        const ws = new WebSocket(wsEndpoint);
+        let ws;
+        let reconnectTimeout;
+        let isUnmounted = false;
 
-        // Open handler
-        ws.onopen = () => {
-            console.log("[User Portal] WebSocket connection established successfully. Live synchronizer is active.");
+        const connectWs = () => {
+            if (isUnmounted) return;
+            const wsEndpoint = `${WS_URL}/ws/items/`;
+            console.log(`[User Portal] Initializing real-time synchronization socket at: ${wsEndpoint}`);
+            
+            ws = new WebSocket(wsEndpoint);
+
+            // Open handler
+            ws.onopen = () => {
+                console.log("[User Portal] WebSocket connection established successfully. Live synchronizer is active.");
+            };
+
+            // Message handler: triggers refresh query on state broadcast
+            ws.onmessage = (event) => {
+                console.log("[User Portal] Real-time event received from Daphne server. Event frame payload:", event.data);
+                const data = JSON.parse(event.data);
+                if (data.type === 'update_matrix' || data.type === 'item_update') {
+                    console.log("[User Portal] State mutation detected. Dispatching API refresh fetch...");
+                    fetchItems();
+                }
+            };
+
+            // Error handler
+            ws.onerror = (err) => {
+                console.error("[User Portal] WebSocket synchronization pipeline encountered an error state:", err);
+            };
+
+            // Close handler
+            ws.onclose = (e) => {
+                console.log(`[User Portal] WebSocket connection terminated (Code: ${e.code}). Attempting reconnect in 3s...`);
+                if (!isUnmounted) {
+                    reconnectTimeout = setTimeout(connectWs, 3000);
+                }
+            };
         };
 
-        // Message handler: triggers refresh query on state broadcast
-        ws.onmessage = (event) => {
-            console.log("[User Portal] Real-time event received from Daphne server. Event frame payload:", event.data);
-            const data = JSON.parse(event.data);
-            if (data.type === 'update_matrix' || data.type === 'item_update') {
-                console.log("[User Portal] State mutation detected. Dispatching API refresh fetch...");
-                fetchItems();
-            }
-        };
-
-        // Error handler
-        ws.onerror = (err) => {
-            console.error("[User Portal] WebSocket synchronization pipeline encountered an error state:", err);
-        };
-
-        // Close handler
-        ws.onclose = (e) => {
-            console.log("[User Portal] WebSocket connection terminated. Event code:", e.code);
-        };
+        connectWs();
 
         // Clean up socket on unmount
         return () => {
             console.log("[User Portal] Component unmounting. Terminating socket channel.");
-            ws.close();
+            isUnmounted = true;
+            clearTimeout(reconnectTimeout);
+            if (ws) ws.close();
         };
     }, []);
 
