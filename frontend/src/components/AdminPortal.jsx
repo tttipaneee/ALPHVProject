@@ -1,9 +1,18 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 
+// Dynamic API and WS URLs derived from environment variables, with local defaults
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+const WS_URL = import.meta.env.VITE_WS_URL || 'ws://localhost:8000';
+
+/**
+ * ShapeRenderer Component
+ * Renders geometric SVG elements styled according to shape types and color parameters.
+ */
 const ShapeRenderer = ({ shape, color }) => {
     const size = 36;
     
+    // Curated theme color maps
     const colorMap = {
         red: '#E87A5D', // Coral accent
         blue: '#5C85FF',
@@ -37,8 +46,15 @@ const ShapeRenderer = ({ shape, color }) => {
     return null;
 };
 
+/**
+ * AdminPortal Component
+ * Administrative interface providing privileged CRUD controls over shape catalog data.
+ * Validates input parameters locally and processes database updates via API.
+ */
 export default function AdminPortal() {
     const [items, setItems] = useState([]);
+    
+    // Deployed shape state fields
     const [form, setForm] = useState({ name: '', shape: 'circle', color: 'red' });
     const [editingId, setEditingId] = useState(null);
     const [focusedField, setFocusedField] = useState(null);
@@ -46,48 +62,95 @@ export default function AdminPortal() {
     const navigate = useNavigate();
     const token = localStorage.getItem('token');
 
+    /**
+     * Fetches current shapes database list from backend REST API.
+     */
     const fetchItems = async () => {
+        console.log(`[Admin Portal] Requesting visual items from REST API: ${API_URL}/api/items/`);
         try {
-            const res = await fetch('http://localhost:8000/api/items/', {
+            const res = await fetch(`${API_URL}/api/items/`, {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
+            console.log(`[Admin Portal] List API responded with status: ${res.status}`);
+            
             if (res.ok) {
                 const data = await res.json();
-                setItems(Array.isArray(data) ? data : data.results || []);
+                const fetchedList = Array.isArray(data) ? data : data.results || [];
+                console.log(`[Admin Portal] Successfully loaded ${fetchedList.length} items from database.`);
+                setItems(fetchedList);
             } else if (res.status === 401) {
+                console.warn("[Admin Portal] JWT Token expired or rejected (401). Evicting session and redirecting...");
                 localStorage.removeItem('token');
+                localStorage.removeItem('role');
                 navigate('/auth?role=admin');
             } else {
-                console.error("Failed to fetch items. Status:", res.status);
+                console.error("[Admin Portal] Server endpoint query failed with status code:", res.status);
             }
         } catch (error) {
-            console.error("Network error fetching items:", error);
+            console.error("[Admin Portal] Fetch exception encountered during API connection:", error);
         }
     };
 
+    // WebSocket real-time synchronization hook
     useEffect(() => {
         const role = localStorage.getItem('role');
+        console.log("[Admin Portal] Initializing dashboard component lifecycle. Active Role Claim:", role);
+
+        // Client-side role authorization check
         if (role !== 'admin') {
+            console.warn("[Admin Portal] Unauthorized role access. Redirecting user to Admin Login page.");
             navigate('/auth?role=admin');
             return;
         }
 
+        // Fetch initial list state
         fetchItems();
 
-        const ws = new WebSocket('ws://localhost:8000/ws/items/');
+        const wsEndpoint = `${WS_URL}/ws/items/`;
+        console.log(`[Admin Portal] Initializing real-time synchronization socket at: ${wsEndpoint}`);
+        
+        const ws = new WebSocket(wsEndpoint);
+
+        // Open handler
+        ws.onopen = () => {
+            console.log("[Admin Portal] WebSocket connection established successfully. Live synchronizer is active.");
+        };
+
+        // Message handler: triggers refresh query on state broadcast
         ws.onmessage = (event) => {
+            console.log("[Admin Portal] Real-time event received from Daphne server. Event frame payload:", event.data);
             const data = JSON.parse(event.data);
             if (data.type === 'update_matrix' || data.type === 'item_update') {
+                console.log("[Admin Portal] State mutation detected. Dispatching API refresh fetch...");
                 fetchItems();
             }
         };
-        ws.onerror = (err) => console.error("WebSocket Error:", err);
 
-        return () => ws.close();
+        // Error handler
+        ws.onerror = (err) => {
+            console.error("[Admin Portal] WebSocket synchronization pipeline encountered an error state:", err);
+        };
+
+        // Close handler
+        ws.onclose = (e) => {
+            console.log("[Admin Portal] WebSocket connection terminated. Event code:", e.code);
+        };
+
+        // Clean up socket on unmount
+        return () => {
+            console.log("[Admin Portal] Component unmounting. Terminating socket channel.");
+            ws.close();
+        };
     }, []);
 
-
+    /**
+     * Loads shape record details into the inputs form to initiate edit process.
+     * @param {object} item - Database shape item record
+     */
     const handleEdit = (item) => {
+        console.log(`[Admin Portal] Loading shape ID ${item.id} details into edit form.`);
+        
+        // Normalize shape and color configurations to lowercase to avoid strict checks validation mismatch
         setForm({ 
             name: item.name, 
             shape: item.shape.toLowerCase(), 
@@ -96,45 +159,86 @@ export default function AdminPortal() {
         setEditingId(item.id);
     };
 
-
+    /**
+     * Submits form payload to API endpoints to add or modify records.
+     */
     const handleSubmit = async (e) => {
         e.preventDefault();
 
-        if (!form.name.trim() || !['red', 'blue', 'green', 'yellow'].includes(form.color) || !['circle', 'square', 'triangle'].includes(form.shape)) {
+        console.log("[Admin Portal] Initiating form validation check...");
+
+        // Double-guard local verification
+        if (!form.name.trim() || !['red', 'blue', 'green', 'yellow'].includes(form.color.toLowerCase()) || !['circle', 'square', 'triangle'].includes(form.shape.toLowerCase())) {
+            console.warn("[Admin Portal] Local input validation failed! Rejecting payload dispatch.", form);
             alert('Invalid input. Ensure all fields are filled properly.');
             return;
         }
 
-        const url = editingId ? `http://localhost:8000/api/items/${editingId}/` : 'http://localhost:8000/api/items/';
+        const url = editingId ? `${API_URL}/api/items/${editingId}/` : `${API_URL}/api/items/`;
         const method = editingId ? 'PUT' : 'POST';
 
-        const res = await fetch(url, {
-            method,
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${token}`
-            },
-            body: JSON.stringify(form)
-        });
+        console.log(`[Admin Portal] Dispatching database mutation. Method: ${method}, URL: ${url}, Payload:`, form);
 
-        if (res.ok) {
-            setForm({ name: '', shape: 'circle', color: 'red' });
-            setEditingId(null);
-            fetchItems();
-        } else {
-            const err = await res.json();
-            alert('Validation Error: ' + JSON.stringify(err));
+        try {
+            const res = await fetch(url, {
+                method,
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify(form)
+            });
+
+            console.log(`[Admin Portal] Server mutation response code: ${res.status}`);
+
+            if (res.ok) {
+                console.log("[Admin Portal] Shape deployment/modification completed successfully. Resetting form state.");
+                setForm({ name: '', shape: 'circle', color: 'red' });
+                setEditingId(null);
+                fetchItems();
+            } else {
+                const err = await res.json();
+                console.error("[Admin Portal] Server validation error returned:", err);
+                alert('Validation Error: ' + JSON.stringify(err));
+            }
+        } catch (error) {
+            console.error("[Admin Portal] HTTP exception encountered during mutation submit:", error);
         }
     };
 
+    /**
+     * Sends DELETE request to remove shape record from database.
+     * @param {number} id - Database target record ID
+     */
     const handleDelete = async (id) => {
-        const res = await fetch(`http://localhost:8000/api/items/${id}/`, {
-            method: 'DELETE',
-            headers: { 'Authorization': `Bearer ${token}` }
-        });
-        if (res.ok) {
-            fetchItems();
+        const url = `${API_URL}/api/items/${id}/`;
+        console.log(`[Admin Portal] Dispatching DELETE request to: ${url}`);
+        
+        try {
+            const res = await fetch(url, {
+                method: 'DELETE',
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            console.log(`[Admin Portal] Delete API responded with status: ${res.status}`);
+            
+            if (res.ok) {
+                console.log(`[Admin Portal] Record ID ${id} deleted successfully. Refreshing database catalog...`);
+                fetchItems();
+            } else {
+                console.error(`[Admin Portal] Delete request for record ID ${id} failed with status:`, res.status);
+            }
+        } catch (error) {
+            console.error("[Admin Portal] HTTP exception encountered during delete request:", error);
         }
+    };
+
+    /**
+     * Handles user signout, clearing browser local memory.
+     */
+    const handleLogout = () => {
+        console.log("[Admin Portal] Initiating logout. Cleaning localStorage session keys...");
+        localStorage.clear();
+        navigate('/');
     };
 
     return (
@@ -155,19 +259,18 @@ export default function AdminPortal() {
                     <div className="flex items-center gap-3">
                         {/* Logout button */}
                         <button 
-                            onClick={() => { localStorage.clear(); navigate('/'); }} 
+                            onClick={handleLogout} 
                             className="bg-[#EFEBE4] hover:bg-[#E5DFD5] text-gray-900 px-5 py-2.5 rounded-full text-xs font-semibold tracking-wider transition-all cursor-pointer shadow-2xs"
                         >
                             Logout
                         </button>
                     </div>
-
                 </div>
 
                 {/* Dashboard layout */}
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                     
-                    {/* Control Panel Card (Right styled column, let's keep it left for desktop reading) */}
+                    {/* Control Panel Card */}
                     <div className="bg-white rounded-3xl border border-[#E5E0D8] p-8 shadow-sm flex flex-col justify-start h-fit lg:sticky lg:top-8">
                         <h2 className="text-xl font-serif text-gray-900 font-normal mb-6">
                             {editingId ? 'Edit Shape Details' : 'Deploy New Shape'}
@@ -180,7 +283,7 @@ export default function AdminPortal() {
                                     Name
                                 </label>
                                 <div className={`relative flex items-center bg-white border rounded-full px-4 py-1 transition-all duration-200 ${focusedField === 'name' ? 'border-gray-900 ring-2 ring-gray-900/5' : 'border-[#E5E0D8] hover:border-gray-300'}`}>
-                                    {/* Icon */}
+                                    {/* SVG Input Icon */}
                                     <svg className="w-5 h-5 text-gray-400 mr-2 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                                     </svg>
@@ -196,7 +299,6 @@ export default function AdminPortal() {
                                     />
                                 </div>
                             </div>
-
 
                             {/* Shape Selector */}
                             <div>
@@ -258,7 +360,11 @@ export default function AdminPortal() {
                                 {editingId && (
                                     <button 
                                         type="button" 
-                                        onClick={() => { setEditingId(null); setForm({ name: '', shape: 'circle', color: 'red' }) }} 
+                                        onClick={() => { 
+                                            console.log("[Admin Portal] Cancelling edit action. Resetting form state.");
+                                            setEditingId(null); 
+                                            setForm({ name: '', shape: 'circle', color: 'red' });
+                                        }} 
                                         className="bg-[#EFEBE4] hover:bg-[#E5DFD5] text-gray-900 py-3.5 px-6 rounded-full text-xs font-bold tracking-wider transition-all cursor-pointer shadow-2xs"
                                     >
                                         Cancel

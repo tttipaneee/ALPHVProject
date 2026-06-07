@@ -1,8 +1,27 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 
+/**
+ * Welcome Component
+ * Landing page of the ShapeStream application.
+ * Exposes access controls leading to the Admin Portal and User Portal authentication routes.
+ */
 export default function Welcome() {
     const navigate = useNavigate();
+
+    // Trace landing page initialization lifecycle
+    useEffect(() => {
+        console.log("[ShapeStream] Welcome component mounted successfully. Ready for portal selection.");
+    }, []);
+
+    /**
+     * Handles routing redirection to the authorization form.
+     * @param {string} targetRole - Chosen route permission target ('admin' | 'user')
+     */
+    const handlePortalRedirect = (targetRole) => {
+        console.log(`[ShapeStream] Navigating to Auth form with role option: '${targetRole}'`);
+        navigate(`/auth?role=${targetRole}`);
+    };
 
     return (
         <div className="min-h-screen bg-[#F6F5F2] flex flex-col justify-between animate-fade-in font-sans">
@@ -19,7 +38,6 @@ export default function Welcome() {
                     <span className="text-gray-900 font-bold tracking-widest text-xs uppercase font-sans">ALPHV</span>
                 </div>
             </header>
-
 
             {/* Interactive Hero Canvas Section */}
             <main className="flex-1 flex flex-col items-center justify-center px-6 text-center max-w-3xl mx-auto py-12">
@@ -41,7 +59,7 @@ export default function Welcome() {
                 <div className="flex flex-col sm:flex-row items-center justify-center gap-5 w-full max-w-lg">
                     {/* Admin Portal Button (Solid Black) */}
                     <button
-                        onClick={() => navigate('/auth?role=admin')}
+                        onClick={() => handlePortalRedirect('admin')}
                         className="w-full bg-gray-900 hover:bg-black text-white py-4 px-8 rounded-full text-sm font-semibold tracking-wider shadow-sm transition-all hover:-translate-y-0.5 active:translate-y-0 cursor-pointer"
                     >
                         Login as Admin
@@ -49,7 +67,7 @@ export default function Welcome() {
 
                     {/* User Portal Button (Solid White with Border) */}
                     <button
-                        onClick={() => navigate('/auth?role=user')}
+                        onClick={() => handlePortalRedirect('user')}
                         className="w-full bg-white text-gray-900 border border-[#E5E0D8] hover:bg-slate-50 py-4 px-8 rounded-full text-sm font-semibold tracking-wider shadow-sm transition-all hover:-translate-y-0.5 active:translate-y-0 cursor-pointer"
                     >
                         Sign up as User

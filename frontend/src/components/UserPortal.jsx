@@ -1,10 +1,18 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 
+// Dynamic API and WS URLs derived from environment variables, with local defaults
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+const WS_URL = import.meta.env.VITE_WS_URL || 'ws://localhost:8000';
+
+/**
+ * ShapeRenderer Component
+ * Renders high-fidelity SVGs of geometric shapes matching their color maps.
+ */
 const ShapeRenderer = ({ shape, color }) => {
     const size = 36;
     
-    // Curated soft/modern palette mapping for basic color strings
+    // Design system curated color palette
     const colorMap = {
         red: '#E87A5D', // Coral accent
         blue: '#5C85FF',
@@ -38,51 +46,105 @@ const ShapeRenderer = ({ shape, color }) => {
     return null;
 };
 
+/**
+ * UserPortal Component
+ * Displays the deployed shapes visual matrix grid and logs.
+ * Receives server state updates via live WebSockets connections.
+ */
 export default function UserPortal() {
     const [items, setItems] = useState([]);
     const navigate = useNavigate();
     const token = localStorage.getItem('token');
 
+    /**
+     * Fetches current shapes catalog from the REST API endpoints.
+     */
     const fetchItems = async () => {
+        console.log(`[User Portal] Triggering fetch request to REST API: ${API_URL}/api/items/`);
         try {
-            const res = await fetch('http://localhost:8000/api/items/', {
+            const res = await fetch(`${API_URL}/api/items/`, {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
+            console.log(`[User Portal] Fetch API responded with code: ${res.status}`);
+            
             if (res.ok) {
                 const data = await res.json();
-                setItems(Array.isArray(data) ? data : data.results || []);
+                const fetchedList = Array.isArray(data) ? data : data.results || [];
+                console.log(`[User Portal] Successfully loaded ${fetchedList.length} shape elements from database.`);
+                setItems(fetchedList);
             } else if (res.status === 401) {
+                console.warn("[User Portal] Token credentials rejected (401). Evicting session and redirecting...");
                 localStorage.removeItem('token');
+                localStorage.removeItem('role');
                 navigate('/auth?role=user');
             } else {
-                console.error("Failed to fetch items. Status:", res.status);
+                console.error("[User Portal] Server endpoint query failed with status code:", res.status);
             }
         } catch (error) {
-            console.error("Network error fetching items:", error);
+            console.error("[User Portal] Fetch exception encountered during API handshake:", error);
         }
     };
 
+    // WebSocket real-time synchronization hook
     useEffect(() => {
         const role = localStorage.getItem('role');
+        console.log("[User Portal] Initializing dashboard component lifecycle. Active Role Claim:", role);
+
+        // Client-side role authorization check
         if (role !== 'user' && role !== 'admin') {
+            console.warn("[User Portal] Unauthorized role access. Redirecting user to Login page.");
             navigate('/auth?role=user');
             return;
         }
 
+        // Fetch initial list state
         fetchItems();
 
-        const ws = new WebSocket('ws://localhost:8000/ws/items/');
+        const wsEndpoint = `${WS_URL}/ws/items/`;
+        console.log(`[User Portal] Initializing real-time synchronization socket at: ${wsEndpoint}`);
+        
+        const ws = new WebSocket(wsEndpoint);
+
+        // Open handler
+        ws.onopen = () => {
+            console.log("[User Portal] WebSocket connection established successfully. Live synchronizer is active.");
+        };
+
+        // Message handler: triggers refresh query on state broadcast
         ws.onmessage = (event) => {
+            console.log("[User Portal] Real-time event received from Daphne server. Event frame payload:", event.data);
             const data = JSON.parse(event.data);
             if (data.type === 'update_matrix' || data.type === 'item_update') {
+                console.log("[User Portal] State mutation detected. Dispatching API refresh fetch...");
                 fetchItems();
             }
         };
-        ws.onerror = (err) => console.error("WebSocket Error:", err);
 
-        return () => ws.close();
+        // Error handler
+        ws.onerror = (err) => {
+            console.error("[User Portal] WebSocket synchronization pipeline encountered an error state:", err);
+        };
+
+        // Close handler
+        ws.onclose = (e) => {
+            console.log("[User Portal] WebSocket connection terminated. Event code:", e.code);
+        };
+
+        // Clean up socket on unmount
+        return () => {
+            console.log("[User Portal] Component unmounting. Terminating socket channel.");
+            ws.close();
+        };
     }, []);
 
+    /**
+     * Handles user signout, clearing browser local memory.
+     */
+    const handleLogout = () => {
+        console.log("[User Portal] Initiating logout. Cleaning localStorage session keys...");
+        localStorage.clear();
+        navigate('/');
+    };
 
     return (
         <div className="min-h-screen bg-[#F6F5F2] py-10 px-6 sm:px-12 font-sans animate-fade-in">
@@ -102,13 +164,12 @@ export default function UserPortal() {
                     <div className="flex items-center gap-3">
                         {/* Logout button (Pale Beige Pill) */}
                         <button 
-                            onClick={() => { localStorage.clear(); navigate('/'); }} 
+                            onClick={handleLogout} 
                             className="bg-[#EFEBE4] hover:bg-[#E5DFD5] text-gray-900 px-5 py-2.5 rounded-full text-xs font-semibold tracking-wider transition-all cursor-pointer shadow-2xs"
                         >
                             Logout
                         </button>
                     </div>
-
                 </div>
 
                 {/* Dashboard Panels */}
@@ -163,7 +224,6 @@ export default function UserPortal() {
                                             <div className="text-[9px] text-gray-400 font-semibold uppercase tracking-wider mt-0.5">
                                                 {new Date(item.timestamp).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}
                                             </div>
-
                                         </div>
                                     </div>
                                     

@@ -2,6 +2,7 @@ import os
 from pathlib import Path
 import dj_database_url
 
+
 BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = 'django-insecure-api-key-for-assessment'
 DEBUG = os.environ.get('DEBUG', 'False') == 'True'
@@ -53,7 +54,7 @@ WSGI_APPLICATION = 'backend_project.wsgi.application'
 
 DATABASES = {
     'default': dj_database_url.config(
-        default='postgres://postgres:postgres@localhost:5432/shapematrix_db',
+        default='postgresql://postgres:postgres@localhost:5432/shapematrix_db',
         conn_max_age=600
     )
 }
@@ -67,15 +68,16 @@ USE_TZ = True
 STATIC_URL = 'static/'
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-REST_FRAMEWORK = {
-    'DEFAULT_AUTHENTICATION_CLASSES': [
-        'rest_framework.authentication.TokenAuthentication',
-    ],
-}
-
-# Allow our React frontend to talk to this backend
-CORS_ALLOW_ALL_ORIGINS = True
-
+# Configure CORS origins securely
+CORS_ALLOWED_ORIGINS = [
+    "http://localhost:5173",
+    "http://localhost:3000",
+]
+FRONTEND_URL = os.environ.get('FRONTEND_URL')
+if FRONTEND_URL:
+    CORS_ALLOWED_ORIGINS.append(FRONTEND_URL)
+else:
+    CORS_ALLOW_ALL_ORIGINS = True # Fallback for local development if URL not set
 
 # Enterprise API Settings
 REST_FRAMEWORK = {
@@ -86,14 +88,20 @@ REST_FRAMEWORK = {
 
 # WebSocket & Channel Layer Settings
 ASGI_APPLICATION = 'backend_project.asgi.application'
-CHANNEL_LAYERS = {
-    "default": {
-        "BACKEND": "channels_redis.core.RedisChannelLayer",
-        "CONFIG": {
-            # Use the DigitalOcean Redis URL, or fallback to localhost
-            "hosts": [os.environ.get('REDIS_URL', 'redis://127.0.0.1:6379')],
-        },
-    },
-}
 
-CORS_ALLOW_ALL_ORIGINS = True
+REDIS_URL = os.environ.get('REDIS_URL')
+if REDIS_URL:
+    CHANNEL_LAYERS = {
+        "default": {
+            "BACKEND": "channels_redis.core.RedisChannelLayer",
+            "CONFIG": {
+                "hosts": [REDIS_URL],
+            },
+        },
+    }
+else:
+    CHANNEL_LAYERS = {
+        "default": {
+            "BACKEND": "channels.layers.InMemoryChannelLayer"
+        }
+    }
