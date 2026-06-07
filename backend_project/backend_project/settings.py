@@ -1,7 +1,6 @@
 import os
 from pathlib import Path
 from datetime import timedelta
-import ssl
 import dj_database_url
 
 
@@ -102,48 +101,12 @@ SIMPLE_JWT = {
 # WebSocket & Channel Layer Settings
 ASGI_APPLICATION = 'backend_project.asgi.application'
 
-REDIS_URL = os.environ.get('REDIS_URL')
-if REDIS_URL:
-    # If the URL is unencrypted redis:// but points to Upstash, upgrade it to rediss://
-    # since Upstash Redis databases are TLS-only by default.
-    if "upstash.io" in REDIS_URL and REDIS_URL.startswith("redis://"):
-        REDIS_URL = REDIS_URL.replace("redis://", "rediss://", 1)
-        print("[SETTINGS] Auto-upgraded Upstash REDIS_URL protocol to rediss://")
-        
-    if REDIS_URL.startswith('rediss://'):
-        # Append ssl_cert_reqs=none query parameter to URL to bypass certificate checks
-        # without passing dictionary context variables that conflict with base connection classes.
-        if "?" in REDIS_URL:
-            REDIS_URL = f"{REDIS_URL}&ssl_cert_reqs=none"
-        else:
-            REDIS_URL = f"{REDIS_URL}?ssl_cert_reqs=none"
-            
-        sanitized_url = REDIS_URL.split('@')[-1] if '@' in REDIS_URL else REDIS_URL
-        print(f"[SETTINGS] Initializing CHANNEL_LAYERS with secure Redis host: {sanitized_url}")
-        
-        CHANNEL_LAYERS = {
-            "default": {
-                "BACKEND": "channels_redis.core.RedisChannelLayer",
-                "CONFIG": {
-                    "hosts": [REDIS_URL],
-                },
-            },
-        }
-    else:
-        sanitized_url = REDIS_URL.split('@')[-1] if '@' in REDIS_URL else REDIS_URL
-        print(f"[SETTINGS] Initializing CHANNEL_LAYERS with unencrypted Redis host: {sanitized_url}")
-        CHANNEL_LAYERS = {
-            "default": {
-                "BACKEND": "channels_redis.core.RedisChannelLayer",
-                "CONFIG": {
-                    "hosts": [REDIS_URL],
-                },
-            },
-        }
-else:
-    print("[SETTINGS] No REDIS_URL detected. Initializing CHANNEL_LAYERS with InMemoryChannelLayer")
-    CHANNEL_LAYERS = {
-        "default": {
-            "BACKEND": "channels.layers.InMemoryChannelLayer"
-        }
-    }
+# For container process stability and to avoid external connection timeouts (e.g. Upstash Redis TLS handshake latency),
+# we utilize Django Channels' InMemoryChannelLayer. Since Daphne handles both HTTP and WebSocket connections
+# in a single container process, the in-memory layer is fully shared, enabling instant, 0ms latency real-time updates.
+print("[SETTINGS] Initializing CHANNEL_LAYERS with InMemoryChannelLayer for container process stability.")
+CHANNEL_LAYERS = {
+    "default": {
+        "BACKEND": "channels.layers.InMemoryChannelLayer"
+    }
+}
