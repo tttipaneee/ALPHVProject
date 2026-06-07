@@ -107,8 +107,12 @@ if REDIS_URL:
     # since Upstash Redis databases are TLS-only by default.
     if "upstash.io" in REDIS_URL and REDIS_URL.startswith("redis://"):
         REDIS_URL = REDIS_URL.replace("redis://", "rediss://", 1)
+        print("[SETTINGS] Auto-upgraded Upstash REDIS_URL protocol to rediss://")
         
     if REDIS_URL.startswith('rediss://'):
+        # Sanitize password for safe logging
+        sanitized_url = REDIS_URL.split('@')[-1] if '@' in REDIS_URL else REDIS_URL
+        print(f"[SETTINGS] Initializing CHANNEL_LAYERS with secure Redis host: {sanitized_url}")
         CHANNEL_LAYERS = {
             "default": {
                 "BACKEND": "channels_redis.core.RedisChannelLayer",
@@ -123,6 +127,8 @@ if REDIS_URL:
             },
         }
     else:
+        sanitized_url = REDIS_URL.split('@')[-1] if '@' in REDIS_URL else REDIS_URL
+        print(f"[SETTINGS] Initializing CHANNEL_LAYERS with unencrypted Redis host: {sanitized_url}")
         CHANNEL_LAYERS = {
             "default": {
                 "BACKEND": "channels_redis.core.RedisChannelLayer",
@@ -132,6 +138,7 @@ if REDIS_URL:
             },
         }
 else:
+    print("[SETTINGS] No REDIS_URL detected. Initializing CHANNEL_LAYERS with InMemoryChannelLayer")
     CHANNEL_LAYERS = {
         "default": {
             "BACKEND": "channels.layers.InMemoryChannelLayer"
