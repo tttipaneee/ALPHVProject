@@ -1,6 +1,7 @@
 import os
 from pathlib import Path
 from datetime import timedelta
+import ssl
 import dj_database_url
 
 
@@ -113,6 +114,12 @@ if REDIS_URL:
         # Sanitize password for safe logging
         sanitized_url = REDIS_URL.split('@')[-1] if '@' in REDIS_URL else REDIS_URL
         print(f"[SETTINGS] Initializing CHANNEL_LAYERS with secure Redis host: {sanitized_url}")
+        
+        # Create custom SSL context to disable hostname verification and cert validation
+        ssl_context = ssl.create_default_context()
+        ssl_context.check_hostname = False
+        ssl_context.verify_mode = ssl.CERT_NONE
+        
         CHANNEL_LAYERS = {
             "default": {
                 "BACKEND": "channels_redis.core.RedisChannelLayer",
@@ -120,7 +127,7 @@ if REDIS_URL:
                     "hosts": [
                         {
                             "address": REDIS_URL,
-                            "ssl_cert_reqs": "none",
+                            "ssl": ssl_context,
                         }
                     ],
                 },
