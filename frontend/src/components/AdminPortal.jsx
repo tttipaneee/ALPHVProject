@@ -66,6 +66,10 @@ export default function AdminPortal() {
      * Fetches current shapes database list from backend REST API.
      */
     const fetchItems = async () => {
+        if (!token) {
+            console.warn("[Admin Portal] Token is missing from localStorage. Skipping API fetch.");
+            return;
+        }
         console.log(`[Admin Portal] Requesting visual items from REST API: ${API_URL}/api/items/`);
         try {
             const res = await fetch(`${API_URL}/api/items/`, {

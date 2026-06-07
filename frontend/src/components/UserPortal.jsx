@@ -60,6 +60,10 @@ export default function UserPortal() {
      * Fetches current shapes catalog from the REST API endpoints.
      */
     const fetchItems = async () => {
+        if (!token) {
+            console.warn("[User Portal] Token is missing from localStorage. Skipping API fetch.");
+            return;
+        }
         console.log(`[User Portal] Triggering fetch request to REST API: ${API_URL}/api/items/`);
         try {
             const res = await fetch(`${API_URL}/api/items/`, {
