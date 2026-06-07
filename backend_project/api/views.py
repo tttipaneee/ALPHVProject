@@ -1,8 +1,9 @@
 import logging
 from rest_framework import viewsets, generics
 from rest_framework.permissions import AllowAny
+from rest_framework_simplejwt.views import TokenObtainPairView
 from .models import VisualItem
-from .serializers import VisualItemSerializer, UserRegistrationSerializer
+from .serializers import VisualItemSerializer, UserRegistrationSerializer, CustomTokenObtainPairSerializer
 from .permissions import IsAdminUserOrReadOnly
 from channels.layers import get_channel_layer
 from asgiref.sync import async_to_sync
@@ -92,3 +93,11 @@ class UserRegistrationView(generics.CreateAPIView):
         role = "Admin/Staff" if user.is_staff else "Regular User"
         logger.info(f"[Auth Engine] Registered new account: '{user.username}' as role: '{role}'")
         print(f"[SERVER LOG] [Auth] Registered new account '{user.username}' with role '{role}'")
+
+
+class CustomTokenObtainPairView(TokenObtainPairView):
+    """
+    Custom TokenObtainPairView that leverages CustomTokenObtainPairSerializer
+    to yield client-side JWT keys and staff context flags.
+    """
+    serializer_class = CustomTokenObtainPairSerializer

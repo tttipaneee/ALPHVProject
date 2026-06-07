@@ -60,6 +60,13 @@ export default function Auth() {
                     alert('Registration successful! Please log in.');
                     setIsLogin(true); // Toggle to login mode
                 } else {
+                    // Check if they are trying to log in as admin but don't have staff privileges
+                    if (role === 'admin' && !data.is_staff) {
+                        console.error("[Auth UI] Access Denied: Account is not marked as staff on the backend.");
+                        alert('Access Denied: This account does not have administrator privileges.');
+                        return;
+                    }
+
                     console.log("[Auth UI] Login success. Writing tokens and roles to localStorage...");
                     // Store access token and user role inside localized browser memory
                     localStorage.setItem('token', data.access);

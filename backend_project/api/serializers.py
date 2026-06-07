@@ -60,3 +60,24 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
             password=validated_data['password'],
             is_staff=validated_data.get('is_staff', False)
         )
+
+
+from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
+
+class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
+    """
+    Custom SimpleJWT TokenObtainPairSerializer that embeds the is_staff flag
+    inside both the token claims and the raw login response dictionary.
+    """
+    @classmethod
+    def get_token(cls, user):
+        token = super().get_token(user)
+        # Add is_staff claim to the token payload
+        token['is_staff'] = user.is_staff
+        return token
+        
+    def validate(self, attrs):
+        data = super().validate(attrs)
+        # Return is_staff flag directly in response dictionary for frontend validations
+        data['is_staff'] = self.user.is_staff
+        return data
