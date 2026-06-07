@@ -103,6 +103,11 @@ ASGI_APPLICATION = 'backend_project.asgi.application'
 
 REDIS_URL = os.environ.get('REDIS_URL')
 if REDIS_URL:
+    # If the URL is unencrypted redis:// but points to Upstash, upgrade it to rediss://
+    # since Upstash Redis databases are TLS-only by default.
+    if "upstash.io" in REDIS_URL and REDIS_URL.startswith("redis://"):
+        REDIS_URL = REDIS_URL.replace("redis://", "rediss://", 1)
+        
     if REDIS_URL.startswith('rediss://'):
         CHANNEL_LAYERS = {
             "default": {
