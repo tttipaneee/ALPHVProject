@@ -103,14 +103,29 @@ ASGI_APPLICATION = 'backend_project.asgi.application'
 
 REDIS_URL = os.environ.get('REDIS_URL')
 if REDIS_URL:
-    CHANNEL_LAYERS = {
-        "default": {
-            "BACKEND": "channels_redis.core.RedisChannelLayer",
-            "CONFIG": {
-                "hosts": [REDIS_URL],
+    if REDIS_URL.startswith('rediss://'):
+        CHANNEL_LAYERS = {
+            "default": {
+                "BACKEND": "channels_redis.core.RedisChannelLayer",
+                "CONFIG": {
+                    "hosts": [
+                        {
+                            "address": REDIS_URL,
+                            "ssl_cert_reqs": "none",
+                        }
+                    ],
+                },
             },
-        },
-    }
+        }
+    else:
+        CHANNEL_LAYERS = {
+            "default": {
+                "BACKEND": "channels_redis.core.RedisChannelLayer",
+                "CONFIG": {
+                    "hosts": [REDIS_URL],
+                },
+            },
+        }
 else:
     CHANNEL_LAYERS = {
         "default": {
