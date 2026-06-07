@@ -1,28 +1,32 @@
 // @vitest-environment jsdom
 import { render, screen, cleanup } from '@testing-library/react';
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { MemoryRouter } from 'react-router-dom';
 import App from './App';
+import Auth from './components/Auth';
 
-describe('App Component', () => {
+describe('ShapeStream Application Tests', () => {
 
-    // 1. Wipe the robot's memory before every test
     beforeEach(() => {
         localStorage.clear();
     });
 
-    // 2. Clean up the invisible browser after every test
     afterEach(() => {
         cleanup();
     });
 
-    it('renders the main heading correctly', () => {
+    it('renders the main welcome page heading correctly', () => {
         render(<App />);
-        expect(screen.getByText(/Interactive Shape Matrix/i)).toBeDefined();
+        expect(screen.getByText(/ShapeStream/i)).toBeDefined();
     });
 
-    it('renders the admin login gate when logged out', () => {
-        render(<App />);
-        // 3. Look for the actual form inputs instead of specific header text
+    it('renders the login fields on the Auth component', () => {
+        // Render Auth component inside MemoryRouter to provide routing context
+        render(
+            <MemoryRouter initialEntries={['/auth?role=admin']}>
+                <Auth />
+            </MemoryRouter>
+        );
         expect(screen.getByText(/Username/i)).toBeDefined();
         expect(screen.getByText(/Password/i)).toBeDefined();
     });

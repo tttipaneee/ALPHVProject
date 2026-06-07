@@ -1,9 +1,10 @@
 import os
 from pathlib import Path
+import dj_database_url
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = 'django-insecure-api-key-for-assessment'
-DEBUG = True
+DEBUG = os.environ.get('DEBUG', 'False') == 'True'
 ALLOWED_HOSTS = ['*']
 
 INSTALLED_APPS = [
@@ -51,14 +52,10 @@ TEMPLATES = [
 WSGI_APPLICATION = 'backend_project.wsgi.application'
 
 DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.postgresql',
-        'NAME': 'shapematrix_db',    
-        'USER': 'postgres',          
-        'PASSWORD': 'postgres',  
-        'HOST': 'localhost',         
-        'PORT': '5432',             
-    }
+    'default': dj_database_url.config(
+        default='postgres://postgres:postgres@localhost:5432/shapematrix_db',
+        conn_max_age=600
+    )
 }
 
 AUTH_PASSWORD_VALIDATORS = []
@@ -91,6 +88,12 @@ REST_FRAMEWORK = {
 ASGI_APPLICATION = 'backend_project.asgi.application'
 CHANNEL_LAYERS = {
     "default": {
-        "BACKEND": "channels.layers.InMemoryChannelLayer"
-    }
+        "BACKEND": "channels_redis.core.RedisChannelLayer",
+        "CONFIG": {
+            # Use the DigitalOcean Redis URL, or fallback to localhost
+            "hosts": [os.environ.get('REDIS_URL', 'redis://127.0.0.1:6379')],
+        },
+    },
 }
+
+CORS_ALLOW_ALL_ORIGINS = True

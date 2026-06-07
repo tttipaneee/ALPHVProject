@@ -1,3 +1,27 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
+
+@theme {
+  --font-serif: "Playfair Display", Georgia, serif;
+  --font-sans: "Poppins", "Inter", sans-serif;
+  
+  --color-brand-bg: #F6F5F2;
+  --color-brand-accent: #E87A5D;
+  --color-brand-border: #E5E0D8;
+  --color-brand-beige: #EFEBE4;
+}
+
+body {
+  background-color: #F6F5F2;
+  font-family: "Poppins", "Inter", sans-serif;
+  color: #111827; /* high contrast black */
+}
+
+/* Custom fade-in and utility animation */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.5s ease-out forwards;
+}

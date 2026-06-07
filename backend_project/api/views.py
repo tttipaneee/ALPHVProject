@@ -25,9 +25,14 @@ class ItemViewSet(viewsets.ModelViewSet):
         serializer.save()
         self.trigger_broadcast() # Broadcast on Add
 
+    def perform_update(self, serializer):
+        serializer.save()
+        self.trigger_broadcast() # Broadcast on Update
+
     def perform_destroy(self, instance):
         instance.delete()
         self.trigger_broadcast() # Broadcast on Delete
+
 
 class UserRegistrationView(generics.CreateAPIView):
     queryset = User.objects.all()
