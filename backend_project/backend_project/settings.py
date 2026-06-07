@@ -111,25 +111,21 @@ if REDIS_URL:
         print("[SETTINGS] Auto-upgraded Upstash REDIS_URL protocol to rediss://")
         
     if REDIS_URL.startswith('rediss://'):
-        # Sanitize password for safe logging
+        # Append ssl_cert_reqs=none query parameter to URL to bypass certificate checks
+        # without passing dictionary context variables that conflict with base connection classes.
+        if "?" in REDIS_URL:
+            REDIS_URL = f"{REDIS_URL}&ssl_cert_reqs=none"
+        else:
+            REDIS_URL = f"{REDIS_URL}?ssl_cert_reqs=none"
+            
         sanitized_url = REDIS_URL.split('@')[-1] if '@' in REDIS_URL else REDIS_URL
         print(f"[SETTINGS] Initializing CHANNEL_LAYERS with secure Redis host: {sanitized_url}")
-        
-        # Create custom SSL context to disable hostname verification and cert validation
-        ssl_context = ssl.create_default_context()
-        ssl_context.check_hostname = False
-        ssl_context.verify_mode = ssl.CERT_NONE
         
         CHANNEL_LAYERS = {
             "default": {
                 "BACKEND": "channels_redis.core.RedisChannelLayer",
                 "CONFIG": {
-                    "hosts": [
-                        {
-                            "address": REDIS_URL,
-                            "ssl": ssl_context,
-                        }
-                    ],
+                    "hosts": [REDIS_URL],
                 },
             },
         }
